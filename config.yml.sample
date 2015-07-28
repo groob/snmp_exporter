@@ -1,0 +1,31 @@
+metrics:
+  - name: devInterfaceRecvBytes
+    help: "bytes received on interface"
+    oid: 1.3.6.1.4.1.29671.1.1.5.1.7
+    type: Counter
+    indexes:
+      - labelname: devName
+        type: PhysAddress48
+        lookup: 1.3.6.1.4.1.29671.1.1.4.1.2
+      - labelname: devInterfaceName
+        type: PhysAddress48
+        lookup: 1.3.6.1.4.1.29671.1.1.5.1.3
+  - name: devClientCount
+    help: "number of connected clients"
+    oid: 1.3.6.1.4.1.29671.1.1.4.1.5
+    type: Gauge
+    indexes:
+      - labelname: devName
+        type: PhysAddress48
+        lookup: 1.3.6.1.4.1.29671.1.1.4.1.2
+hosts:
+  - address: "router.cisco.com"
+    port: 16100
+    community: "public"
+    version: 2
+    host_metrics:
+      - devInterfaceRecvBytes
+      - devClientCount
+    walk:
+      - 1.3.6.1.4.1.29671.1.1
+      - 1.3.6.1.4.1.29671.1.1
