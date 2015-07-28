@@ -39,10 +39,9 @@ func main() {
 
 type snmpCollector struct {
 	host    host
-	client  *gosnmp.GoSNMP
 	ch      chan gosnmp.SnmpPDU
 	pduList map[string]gosnmp.SnmpPDU
-	// mu      *sync.Mutex
+	mu      *sync.Mutex
 }
 
 func newSNMPClient(h host) *gosnmp.GoSNMP {
@@ -62,20 +61,30 @@ func newSNMPCollector(h host) *snmpCollector {
 		host:    h,
 		ch:      make(chan gosnmp.SnmpPDU, 0),
 		pduList: make(map[string]gosnmp.SnmpPDU),
-		// mu:      &sync.Mutex{},
+		mu:      &sync.Mutex{},
 	}
-	c.walkHost()
+	go c.walkHost()
 	return c
 }
 
 func (c *snmpCollector) walkHost() {
-	client := newSNMPClient(c.host)
-	for _, oid := range c.host.Walk {
-		c.walk(oid, client)
+	ticker := time.NewTicker(time.Minute).C
+	for {
+		select {
+		case <-ticker:
+			for _, oid := range c.host.Walk {
+				fmt.Println("tick")
+				wg.Add(1)
+				go c.walk(oid)
+			}
+			wg.Wait()
+		}
 	}
 }
 
-func (c *snmpCollector) walk(oid string, client *gosnmp.GoSNMP) {
+func (c *snmpCollector) walk(oid string) {
+	defer wg.Done()
+	client := newSNMPClient(c.host)
 	err := client.Connect()
 	if err != nil {
 		log.Fatalf("Connect() err: %v", err)
@@ -89,20 +98,37 @@ func (c *snmpCollector) walk(oid string, client *gosnmp.GoSNMP) {
 }
 
 func (c *snmpCollector) addPDU(pdu gosnmp.SnmpPDU) error {
+	c.mu.Lock()
 	c.pduList[strings.TrimLeft(pdu.Name, ".")] = pdu
+	c.mu.Unlock()
 	return nil
+}
+
+// newLabels converts the plugin and type instance of vl to a set of prometheus.Labels.
+func newLabels(c *snmpCollector, indexes []index, oid string) prometheus.Labels {
+	labels := prometheus.Labels{}
+	for _, i := range indexes {
+		labels[i.LabelName] = oid
+	}
+	return labels
 }
 
 // newDesc converts one data source of a value list to a Prometheus description.
 func newDesc(c *snmpCollector, oid string) *prometheus.Desc {
+	labels := prometheus.Labels{}
+	labels["host"] = c.host.Address
 	var name, help string
 	for metricOID := range Metrics {
 		if oid[:len(metricOID)] == metricOID {
 			name = Metrics[metricOID].Name
 			help = fmt.Sprintf(Metrics[metricOID].Help)
+			indexLables := newLabels(c, Metrics[metricOID].Indexes, oid)
+			for k, v := range indexLables {
+				labels[k] = v
+			}
 		}
 	}
-	return prometheus.NewDesc(name, help, []string{}, prometheus.Labels{})
+	return prometheus.NewDesc(name, help, []string{}, labels)
 }
 
 func newMetric(c *snmpCollector, oid string) (prometheus.Metric, error) {
