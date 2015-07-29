@@ -12,14 +12,13 @@ type indexType string
 
 type index struct {
 	LabelName string    `yaml:"labelname"`
-	IndexType indexType `yaml:"type"`
+	Type      indexType `yaml:"type"`
 	Lookup    string    `yaml:"lookup"`
 }
 
 type snmpMetric struct {
 	Name    string  `yaml:"name"`
 	OID     string  `yaml:"oid"`
-	Type    string  `yaml:"type"`
 	Help    string  `yaml:"help"`
 	Indexes []index `yaml:"indexes"`
 }

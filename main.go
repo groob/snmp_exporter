@@ -70,15 +70,12 @@ func newSNMPCollector(h host) *snmpCollector {
 func (c *snmpCollector) walkHost() {
 	ticker := time.NewTicker(time.Minute).C
 	for {
-		select {
-		case <-ticker:
-			for _, oid := range c.host.Walk {
-				fmt.Println("tick")
-				wg.Add(1)
-				go c.walk(oid)
-			}
-			wg.Wait()
+		for _, oid := range c.host.Walk {
+			wg.Add(1)
+			go c.walk(oid)
 		}
+		wg.Wait()
+		<-ticker
 	}
 }
 
@@ -104,12 +101,52 @@ func (c *snmpCollector) addPDU(pdu gosnmp.SnmpPDU) error {
 	return nil
 }
 
-// newLabels converts the plugin and type instance of vl to a set of prometheus.Labels.
+func lookupLabel(c *snmpCollector, i index, oid string) string {
+	var value string
+	var suboid string
+	switch i.Type {
+	case "PhysAddress48":
+		// if there's a mac address after the lookup
+		b := strings.Split(oid, ".")
+		suboid = strings.Join(b[len(b)-6:], ".")
+		value = suboid
+	case "PhysAddress48AddIndex":
+		// a very hacky way to look up something structured
+		// as OID + MAC address + an index
+		// For example an WAP with multiple interfaces
+		b := strings.Split(oid, ".")
+		suboid = strings.Join(b[len(b)-7:], ".")
+		value = suboid
+	case "PhysAddress48StripIndex":
+		// a very hacky way to look up something structured
+		// as OID + MAC address + an index
+		// For example an WAP with multiple interfaces
+		b := strings.Split(oid, ".")
+		suboid = strings.Join(b[len(b)-7:len(b)-1], ".")
+		value = suboid
+	default:
+		suboid = ""
+		value = suboid
+	}
+	switch v := c.pduList[i.Lookup+"."+suboid]; v.Type {
+	case gosnmp.OctetString:
+		if value != "" {
+			value = string(v.Value.([]byte))
+		}
+	}
+	return value
+}
+
+// newLabels converts OIDs into prometheus.Labels.
 func newLabels(c *snmpCollector, indexes []index, oid string) prometheus.Labels {
 	labels := prometheus.Labels{}
 	for _, i := range indexes {
 		labels[i.LabelName] = oid
+		if i.Lookup != "" {
+			labels[i.LabelName] = lookupLabel(c, i, oid)
+		}
 	}
+
 	return labels
 }
 
