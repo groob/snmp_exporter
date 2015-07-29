@@ -104,31 +104,31 @@ func (c *snmpCollector) addPDU(pdu gosnmp.SnmpPDU) error {
 func lookupLabel(c *snmpCollector, i index, oid string) string {
 	var value string
 	var suboid string
+	for metricOID := range Metrics {
+		if oid[:len(metricOID)] == metricOID {
+			suboid = oid[len(metricOID):]
+		}
+	}
+	fmt.Println(suboid)
 	switch i.Type {
 	case "PhysAddress48":
 		// if there's a mac address after the lookup
-		b := strings.Split(oid, ".")
-		suboid = strings.Join(b[len(b)-6:], ".")
+		b := strings.Split(suboid, ".")
+		suboid = strings.Join(b[:7], ".")
 		value = suboid
 	case "PhysAddress48AddIndex":
 		// a very hacky way to look up something structured
 		// as OID + MAC address + an index
 		// For example an WAP with multiple interfaces
-		b := strings.Split(oid, ".")
-		suboid = strings.Join(b[len(b)-7:], ".")
-		value = suboid
-	case "PhysAddress48StripIndex":
-		// a very hacky way to look up something structured
-		// as OID + MAC address + an index
-		// For example an WAP with multiple interfaces
-		b := strings.Split(oid, ".")
-		suboid = strings.Join(b[len(b)-7:len(b)-1], ".")
+		b := strings.Split(suboid, ".")
+		suboid = strings.Join(b[:8], ".")
 		value = suboid
 	default:
 		suboid = ""
 		value = suboid
 	}
-	switch v := c.pduList[i.Lookup+"."+suboid]; v.Type {
+	fmt.Println(i.Lookup + suboid)
+	switch v := c.pduList[i.Lookup+suboid]; v.Type {
 	case gosnmp.OctetString:
 		if value != "" {
 			value = string(v.Value.([]byte))
