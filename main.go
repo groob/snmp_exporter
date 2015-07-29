@@ -109,8 +109,8 @@ func lookupLabel(c *snmpCollector, i index, oid string) string {
 			suboid = oid[len(metricOID):]
 		}
 	}
-	fmt.Println(suboid)
 	switch i.Type {
+	case "Integer":
 	case "PhysAddress48":
 		// if there's a mac address after the lookup
 		b := strings.Split(suboid, ".")
@@ -124,10 +124,9 @@ func lookupLabel(c *snmpCollector, i index, oid string) string {
 		suboid = strings.Join(b[:8], ".")
 		value = suboid
 	default:
-		suboid = ""
 		value = suboid
+		suboid = ""
 	}
-	fmt.Println(i.Lookup + suboid)
 	switch v := c.pduList[i.Lookup+suboid]; v.Type {
 	case gosnmp.OctetString:
 		if value != "" {
